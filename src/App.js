@@ -1,8 +1,13 @@
-// // @ts-nocheck
+/**
+ * Main Application Entry Point
+ * Production-ready structure with centralized imports
+ */
+
 import React, { useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
 
+// Screens
 import SplashScreen from "./Screens/SplashScreen";
 import LoginScreen from "./Screens/LoginScreen";
 import SignupScreen from "./Screens/SignupScreen";

@@ -1,0 +1,40 @@
+/**
+ * Typography Constants
+ * Centralized typography definitions for the ShopEase app
+ */
+
+export const Typography = {
+  // Font Sizes
+  FONT_SIZE_TINY: 10,
+  FONT_SIZE_SMALL: 12,
+  FONT_SIZE_MEDIUM: 14,
+  FONT_SIZE_LARGE: 16,
+  FONT_SIZE_EXTRA_LARGE: 18,
+  FONT_SIZE_TITLE: 20,
+  FONT_SIZE_HEADER: 24,
+  FONT_SIZE_DISPLAY: 28,
+  FONT_SIZE_HERO: 34,
+  
+  // Font Weights
+  FONT_WEIGHT_LIGHT: '300',
+  FONT_WEIGHT_REGULAR: '400',
+  FONT_WEIGHT_MEDIUM: '500',
+  FONT_WEIGHT_SEMI_BOLD: '600',
+  FONT_WEIGHT_BOLD: '700',
+  FONT_WEIGHT_EXTRA_BOLD: '800',
+  
+  // Line Heights
+  LINE_HEIGHT_SMALL: 16,
+  LINE_HEIGHT_MEDIUM: 20,
+  LINE_HEIGHT_LARGE: 24,
+  LINE_HEIGHT_EXTRA_LARGE: 28,
+  LINE_HEIGHT_TITLE: 32,
+  
+  // Letter Spacing
+  LETTER_SPACING_TIGHT: -0.5,
+  LETTER_SPACING_NORMAL: 0,
+  LETTER_SPACING_WIDE: 0.5,
+  LETTER_SPACING_EXTRA_WIDE: 1,
+};
+
+export default Typography;

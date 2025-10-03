@@ -1,8 +1,9 @@
 {
   "expo": {
-    "name": "smart-scan-app",
-    "slug": "smart-scan-app",
+    "name": "ShopEase",
+    "slug": "shopease",
     "version": "1.0.0",
+    "scheme": "shopease",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -13,17 +14,43 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shopease.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.shopease.app",
+      "permissions": [
+        "CAMERA",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "config": {
+        "googleSignIn": {
+          "apiKey": "your-android-api-key",
+          "certificateHash": "your-sha1-certificate-hash"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bdcc08a5-a34a-4f04-9454-08bc36e7fca9"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow ShopEase to access your camera for scanning products."
+        }
+      ]
+    ]
   }
 }
