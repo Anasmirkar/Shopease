@@ -28,7 +28,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.shopease.app",
+      "applicationId": "com.shopease.app",
       "permissions": [
         "CAMERA",
         "INTERNET",
