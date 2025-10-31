@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import UserProfileSlideBar from './UserProfileSlideBar';
 import { supabase } from '../supabaseClient';
+import { API_CONFIG } from '../config';
 
 const { width, height } = Dimensions.get('window');
 
@@ -312,7 +313,7 @@ export default function MainAppScreen({ user, selectedStore, navigation, onLogou
 
     // Save to backend (Supabase-powered API)
     if (user?.id || user?._id) {
-      fetch('http://localhost:3000/save-shopping-history', {
+      fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SAVE_SHOPPING_HISTORY}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

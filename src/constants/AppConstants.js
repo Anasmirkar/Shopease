@@ -9,7 +9,7 @@ export const AppConstants = {
   APP_VERSION: '1.0.0',
   
   // API Configuration
-  API_BASE_URL: 'http://192.168.78.175:3000',
+  API_BASE_URL: 'https://shopease-backend-yvf4.onrender.com',
   API_TIMEOUT: 10000,
   
   // Scanner Configuration

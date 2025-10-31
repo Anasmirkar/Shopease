@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { API_CONFIG } from '../config';
 
 const { width, height } = Dimensions.get('window');
 
@@ -48,7 +49,7 @@ export default function UserProfileSlideBar({
     
     setLoading(true);
     try {
-      const response = await fetch(`http://192.168.78.175:3000/shopping-history/${user._id}`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.GET_SHOPPING_HISTORY}/${user._id}`);
       const data = await response.json();
       if (data.history) {
         setShoppingHistory(data.history);

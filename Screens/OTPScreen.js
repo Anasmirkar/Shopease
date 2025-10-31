@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Animated, KeyboardAvoidingView, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { API_CONFIG } from '../config';
 
 export default function OTPScreen({ navigation, route }) {
   const { phone, name } = route.params;
@@ -52,7 +53,7 @@ export default function OTPScreen({ navigation, route }) {
     }
     setLoading(true);
     try {
-      const res = await fetch('http://192.168.78.175:3000/verify-otp', {
+      const res = await fetch(`${API_CONFIG.BASE_URL}/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone, otp, name })

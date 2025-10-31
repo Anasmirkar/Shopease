@@ -8,3 +8,14 @@ export const GOOGLE_AUTH_CONFIG = {
   customParameters: {}
   // No redirectUri needed for standalone Android builds - handled automatically
 };
+
+export const API_CONFIG = {
+  BASE_URL: 'https://shopease-backend-yvf4.onrender.com',
+  TIMEOUT: 10000,
+  ENDPOINTS: {
+    REGISTER: '/register',
+    LOGIN: '/login',
+    SAVE_SHOPPING_HISTORY: '/save-shopping-history',
+    GET_SHOPPING_HISTORY: '/shopping-history'
+  }
+};
