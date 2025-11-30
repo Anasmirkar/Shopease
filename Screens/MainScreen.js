@@ -263,19 +263,65 @@ export default function MainAppScreen({ user, selectedStore, navigation, onLogou
     }
   };
 
-  // Checkout handlers
-  const handleCashPayment = () => {
-    const counter = Math.floor(Math.random() * 10) + 1;
-    const cashier = ['Anjali', 'Raj', 'Sneha', 'Mohit'][Math.floor(Math.random() * 4)];
-    setPaymentModalVisible(false);
-    Alert.alert('Cash Payment', `Please pay at counter D-${counter} to ${cashier}.`);
-    generateReceipt('Cash');
-  };
+  // Checkout handler - Generate barcode for counter payment
+  const handleCheckout = async () => {
+    if (!scannedProducts || scannedProducts.length === 0) {
+      Alert.alert('Empty Basket', 'Please scan products before checkout');
+      return;
+    }
 
-  const handleOnlinePayment = (method) => {
-    setPaymentModalVisible(false);
-    Alert.alert('Online Payment', `You selected ${method}. Payment done!`);
-    generateReceipt(method);
+    // Calculate totals
+    const totalAmount = scannedProducts.reduce((sum, item) => sum + (parseFloat(item.price || 0) * (item.quantity || 1)), 0);
+
+    try {
+      setPaymentModalVisible(false);
+
+      const checkoutPayload = {
+        userId: user?.id || user?._id,
+        storeId: selectedStore?.id,
+        products: scannedProducts.map(p => ({
+          barcode: p.barcode,
+          name: p.name,
+          product_id: p.id,
+          quantity: p.quantity || 1,
+          price: p.price,
+          weight: p.weight,
+          total: parseFloat(p.price) * (p.quantity || 1)
+        })),
+        totalAmount
+      };
+
+      const response = await fetch(`${API_CONFIG.BASE_URL}/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(checkoutPayload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Checkout Failed', data.message || 'Failed to generate barcode');
+        return;
+      }
+
+      // Navigate to barcode screen with the checkout data
+      navigation.navigate('CheckoutBarcode', {
+        barcodeData: {
+          barcodeNumber: data.barcodeNumber,
+          barcode: data.barcode,
+          products: checkoutPayload.products,
+          totalAmount: checkoutPayload.totalAmount
+        }
+      });
+
+      // Clear products after successful checkout
+      setScannedProducts([]);
+
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process checkout: ' + error.message);
+    }
   };
 
   // Handle receipt close and cart clear
@@ -596,35 +642,11 @@ export default function MainAppScreen({ user, selectedStore, navigation, onLogou
                   colors={['#1a1a2e', '#16213e']}
                   style={styles.modalGradient}
                 >
-                  <Text style={styles.modalTitle}>Select Payment Method</Text>
+                  <Text style={styles.modalTitle}>Proceed to Checkout</Text>
                   
-                  <TouchableOpacity style={styles.paymentOption} onPress={handleCashPayment}>
-                    <Ionicons name="cash" size={24} color="#4ECDC4" />
-                    <Text style={styles.paymentText}>Cash Payment</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#fff" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.paymentOption} onPress={() => handleOnlinePayment("GPay")}>
-                    <Ionicons name="phone-portrait" size={24} color="#4ECDC4" />
-                    <Text style={styles.paymentText}>Google Pay</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#fff" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.paymentOption} onPress={() => handleOnlinePayment("UPI")}>
-                    <Ionicons name="qr-code" size={24} color="#4ECDC4" />
-                    <Text style={styles.paymentText}>UPI Payment</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#fff" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.paymentOption} onPress={() => handleOnlinePayment("ATM Card")}>
-                    <Ionicons name="card" size={24} color="#4ECDC4" />
-                    <Text style={styles.paymentText}>Debit/Credit Card</Text>
-                    <Ionicons name="chevron-forward" size={20} color="#fff" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.paymentOption} onPress={() => handleOnlinePayment("Net Banking")}>
-                    <Ionicons name="globe" size={24} color="#4ECDC4" />
-                    <Text style={styles.paymentText}>Net Banking</Text>
+                  <TouchableOpacity style={styles.paymentOption} onPress={handleCheckout}>
+                    <Ionicons name="barcode" size={24} color="#4ECDC4" />
+                    <Text style={styles.paymentText}>Generate Barcode</Text>
                     <Ionicons name="chevron-forward" size={20} color="#fff" />
                   </TouchableOpacity>
 
