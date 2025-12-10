@@ -128,13 +128,45 @@ app.post('/checkout', async (req, res) => {
     // Use order ID as barcode (format: last 12 chars of UUID, numeric for barcode)
     const barcodeNumber = orderData.id.replace(/-/g, '').substring(0, 12);
 
-    // Insert order items
-    const orderItems = products.map(product => ({
-      order_id: orderData.id,
-      product_id: product.product_id || null,
-      quantity: product.quantity || 1,
-      price: product.price
-    }));
+    // Get store details for order
+    const { data: storeData } = await supabase
+      .from('stores')
+      .select('name, gst_number')
+      .eq('id', storeId)
+      .single();
+
+    // Insert order items with complete product details for POS
+    const orderItems = products.map(product => {
+      // Calculate GST (default 18% if not specified)
+      const gstRate = product.gst_rate || 18;
+      const linePrice = parseFloat(product.price) * (product.quantity || 1);
+      const taxAmount = (linePrice * gstRate) / 100;
+
+      return {
+        order_id: orderData.id,
+        product_id: product.product_id || null,
+        
+        // Product details
+        product_name: product.name,
+        product_hsn_code: product.hsn_code || null,
+        product_sku: product.barcode,
+        
+        // Quantity
+        quantity: product.quantity || 1,
+        unit_of_measurement: product.unit || 'pcs',
+        
+        // Pricing
+        unit_price: product.price,
+        line_total: linePrice,
+        
+        // Tax
+        gst_rate: gstRate,
+        tax_amount: taxAmount,
+        
+        // POS tracking
+        pos_sync_status: 'pending'
+      };
+    });
 
     const { error: itemsError } = await supabase
       .from('order_items')
@@ -143,6 +175,23 @@ app.post('/checkout', async (req, res) => {
     if (itemsError) {
       console.error('Order items error:', itemsError);
       return res.status(500).json({ message: 'DB error saving items', error: itemsError.message });
+    }
+
+    // Update order with enhanced details
+    const totalTax = orderItems.reduce((sum, item) => sum + (item.tax_amount || 0), 0);
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        store_name: storeData?.name,
+        store_gst_number: storeData?.gst_number,
+        subtotal: products.reduce((sum, p) => sum + (parseFloat(p.price) * (p.quantity || 1)), 0),
+        tax_amount: totalTax,
+        status: 'confirmed'
+      })
+      .eq('id', orderData.id);
+
+    if (updateError) {
+      console.error('Order update error:', updateError);
     }
 
     // Generate 1D barcode (CODE128) as PNG
