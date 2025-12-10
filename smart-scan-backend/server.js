@@ -177,8 +177,22 @@ app.post('/checkout', async (req, res) => {
       return res.status(500).json({ message: 'DB error saving items', error: itemsError.message });
     }
 
-    // Update order with enhanced details
+    // Update order with enhanced details AND items snapshot for Bridge PC app
     const totalTax = orderItems.reduce((sum, item) => sum + (item.tax_amount || 0), 0);
+    
+    // Create items snapshot for Bridge PC app (all items in one JSON field for quick retrieval)
+    const itemsSnapshot = orderItems.map(item => ({
+      product_name: item.product_name,
+      product_sku: item.product_sku,
+      product_hsn_code: item.product_hsn_code,
+      quantity: item.quantity,
+      unit_of_measurement: item.unit_of_measurement,
+      unit_price: item.unit_price,
+      line_total: item.line_total,
+      gst_rate: item.gst_rate,
+      tax_amount: item.tax_amount
+    }));
+
     const { error: updateError } = await supabase
       .from('orders')
       .update({
@@ -186,6 +200,7 @@ app.post('/checkout', async (req, res) => {
         store_gst_number: storeData?.gst_number,
         subtotal: products.reduce((sum, p) => sum + (parseFloat(p.price) * (p.quantity || 1)), 0),
         tax_amount: totalTax,
+        items_snapshot: itemsSnapshot,
         status: 'confirmed'
       })
       .eq('id', orderData.id);

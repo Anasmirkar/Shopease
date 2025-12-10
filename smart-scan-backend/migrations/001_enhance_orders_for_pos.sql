@@ -41,6 +41,11 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS pos_synced BOOLEAN DEFAULT FALSE;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS pos_sync_timestamp TIMESTAMP;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS pos_transaction_id VARCHAR(255);
 
+-- OPTIMIZED: Store complete order items as JSON for fast POS retrieval
+-- This snapshot allows Bridge app to fetch all items in ONE query without joins
+-- Format: [{"product_name": "...", "quantity": 1, "gst_rate": 5, "price": 100}, ...]
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS items_snapshot JSONB;
+
 -- 3. Create index on barcode for fast lookup
 CREATE INDEX IF NOT EXISTS idx_orders_barcode_number 
 ON orders(id);
@@ -53,6 +58,12 @@ ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_order_items_pos_sync_status 
 ON order_items(pos_sync_status);
 
+-- 6. Create index on items_snapshot for JSONB queries (if needed for filtering)
+CREATE INDEX IF NOT EXISTS idx_orders_items_snapshot 
+ON orders USING GIN(items_snapshot);
+
 -- Migration info
--- Run this migration using: node run-migrations.js
+-- This table structure is OPTIMIZED for:
+-- 1. Normalized order_items for accurate records and audit trail
+-- 2. items_snapshot JSON for Bridge PC app to fetch complete order in ONE query
 -- Expected outcome: order_items and orders tables enhanced with POS-required fields
