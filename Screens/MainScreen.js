@@ -291,6 +291,9 @@ export default function MainAppScreen({ user, selectedStore, navigation, onLogou
         totalAmount
       };
 
+      console.log('Checkout payload:', JSON.stringify(checkoutPayload, null, 2));
+      console.log('API URL:', `${API_CONFIG.BASE_URL}/checkout`);
+
       const response = await fetch(`${API_CONFIG.BASE_URL}/checkout`, {
         method: 'POST',
         headers: {
@@ -300,8 +303,10 @@ export default function MainAppScreen({ user, selectedStore, navigation, onLogou
       });
 
       const data = await response.json();
+      console.log('Checkout response:', JSON.stringify(data, null, 2));
 
       if (!response.ok) {
+        console.error('Checkout error:', data);
         Alert.alert('Checkout Failed', data.message || 'Failed to generate barcode');
         return;
       }
