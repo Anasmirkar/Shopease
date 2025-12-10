@@ -86,6 +86,28 @@ app.post('/checkout', async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields: userId, storeId, products, totalAmount' });
     }
 
+    // First, check if user exists, if not create a placeholder user
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', userId)
+      .single();
+
+    if (!existingUser) {
+      // Create a placeholder user for this checkout
+      const { error: userError } = await supabase
+        .from('users')
+        .insert([{
+          id: userId,
+          phone_number: 'unknown',
+          name: 'Guest User'
+        }]);
+      
+      if (userError && userError.code !== '23505') { // 23505 = unique violation (user already exists)
+        console.error('User creation error:', userError);
+      }
+    }
+
     // Create order record
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
@@ -99,7 +121,8 @@ app.post('/checkout', async (req, res) => {
       .single();
 
     if (orderError) {
-      return res.status(500).json({ message: 'DB error creating order', error: orderError.message });
+      console.error('Order creation error:', orderError);
+      return res.status(500).json({ message: 'DB error creating order', error: orderError.message, details: orderError });
     }
 
     // Use order ID as barcode (format: last 12 chars of UUID, numeric for barcode)
@@ -118,6 +141,7 @@ app.post('/checkout', async (req, res) => {
       .insert(orderItems);
 
     if (itemsError) {
+      console.error('Order items error:', itemsError);
       return res.status(500).json({ message: 'DB error saving items', error: itemsError.message });
     }
 
@@ -151,6 +175,7 @@ app.post('/checkout', async (req, res) => {
     });
 
   } catch (error) {
+    console.error('Checkout error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
