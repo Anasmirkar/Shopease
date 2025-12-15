@@ -83,7 +83,7 @@ class AuthService {
       if (error && error.code === 'PGRST116') {
         const insertResult = await supabase
           .from(TABLES.GUESTS)
-          .insert([{ device_id: deviceId }])
+          .insert([{ device_id: deviceId, store_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' }])
           .select()
           .single();
         data = insertResult.data;

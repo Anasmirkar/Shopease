@@ -90,7 +90,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
     }
     // First try to find existing guest record
     let { data, error } = await supabase
-      .from('guests')
+      .from('guest_sessions')
       .select()
       .eq('device_id', deviceId)
       .single();
@@ -98,8 +98,8 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
     // If no existing record found, create new one
     if (error && error.code === 'PGRST116') {
       const insertResult = await supabase
-        .from('guests')
-        .insert([{ device_id: deviceId }])
+        .from('guest_sessions')
+        .insert([{ device_id: deviceId, store_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' }])
         .select()
         .single();
       data = insertResult.data;

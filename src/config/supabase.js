@@ -22,11 +22,16 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // Database table names
 export const TABLES = {
   USERS: 'users',
-  GUESTS: 'guests',
+  GUESTS: 'guest_sessions',
   STORES: 'stores',
   PRODUCTS: 'products',
   SHOPPING_HISTORY: 'shopping_history',
   RECEIPTS: 'receipts',
+  RECEIPT_ITEMS: 'receipt_items',
+  RECEIPT_EVENTS: 'receipt_events',
+  POS_DEVICES: 'pos_devices',
+  SYNC_LOGS: 'sync_logs',
+  TRANSACTIONS: 'transactions',
 };
 
 export default supabase;
