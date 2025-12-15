@@ -102,9 +102,23 @@ export default function SignupScreen({ navigation }) {
     
     // If no existing record found, create new one
     if (error && error.code === 'PGRST116') {
+      // Get first available store
+      const { data: stores, error: storeError } = await supabase
+        .from('stores')
+        .select('id')
+        .limit(1);
+      
+      if (storeError || !stores || stores.length === 0) {
+        setLoading(false);
+        Alert.alert('Error', 'No stores found. Please set up a store first.');
+        return;
+      }
+      
+      const storeId = stores[0].id;
+      
       const insertResult = await supabase
         .from('guest_sessions')
-        .insert([{ device_id: deviceId, store_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' }])
+        .insert([{ device_id: deviceId, store_id: storeId }])
         .select()
         .single();
       data = insertResult.data;

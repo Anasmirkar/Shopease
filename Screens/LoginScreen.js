@@ -88,28 +88,49 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
     } catch (e) {
       deviceId = Math.random().toString(36).substring(2, 15);
     }
-    // First try to find existing guest record
-    let { data, error } = await supabase
-      .from('guest_sessions')
-      .select()
-      .eq('device_id', deviceId)
-      .single();
     
-    // If no existing record found, create new one
-    if (error && error.code === 'PGRST116') {
-      const insertResult = await supabase
+    try {
+      // First try to find existing guest record
+      let { data, error } = await supabase
         .from('guest_sessions')
-        .insert([{ device_id: deviceId, store_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479' }])
         .select()
+        .eq('device_id', deviceId)
         .single();
-      data = insertResult.data;
-      error = insertResult.error;
-    }
-    setLoading(false);
-    if (error) {
-      Alert.alert('Guest Login Failed', error.message);
-    } else {
-      onLoginSuccess && onLoginSuccess({ guest: true, ...data });
+      
+      // If no existing record found, create new one
+      if (error && error.code === 'PGRST116') {
+        // Get first available store
+        const { data: stores, error: storeError } = await supabase
+          .from('stores')
+          .select('id')
+          .limit(1);
+        
+        if (storeError || !stores || stores.length === 0) {
+          setLoading(false);
+          Alert.alert('Error', 'No stores found. Please set up a store first.');
+          return;
+        }
+        
+        const storeId = stores[0].id;
+        
+        const insertResult = await supabase
+          .from('guest_sessions')
+          .insert([{ device_id: deviceId, store_id: storeId }])
+          .select()
+          .single();
+        data = insertResult.data;
+        error = insertResult.error;
+      }
+      
+      setLoading(false);
+      if (error) {
+        Alert.alert('Guest Login Failed', error.message);
+      } else {
+        onLoginSuccess && onLoginSuccess({ guest: true, ...data });
+      }
+    } catch (err) {
+      setLoading(false);
+      Alert.alert('Error', err.message || 'Guest login failed');
     }
   };
 
