@@ -313,6 +313,408 @@ app.get('/shopping-history/:userId', async (req, res) => {
   }
 });
 
+// ========================================
+// RECEIPT API ENDPOINTS (POS Bridge Integration)
+// ========================================
+
+// 1. CREATE RECEIPT (Called by mobile app at checkout)
+app.post('/api/receipt', async (req, res) => {
+  try {
+    const { store_id, guest_session_id, user_id, items } = req.body;
+
+    if (!store_id || !items || items.length === 0) {
+      return res.status(400).json({ message: 'Missing required fields: store_id, items' });
+    }
+
+    // Generate unique receipt code (for barcode encoding)
+    const receipt_code = uuidv4().replace(/-/g, '').substring(0, 12);
+
+    // Calculate totals
+    const totals = items.reduce((acc, item) => {
+      const line_total = (item.unit_price * item.quantity);
+      const tax_amount = (line_total * (item.tax_rate || 0)) / 100;
+      return {
+        subtotal: acc.subtotal + line_total,
+        tax_amount: acc.tax_amount + tax_amount,
+        total_amount: acc.total_amount + line_total + tax_amount
+      };
+    }, { subtotal: 0, tax_amount: 0, total_amount: 0 });
+
+    // Create receipt record
+    const { data: receipt, error: receiptError } = await supabase
+      .from('receipts')
+      .insert([{
+        store_id,
+        user_id: user_id || null,
+        guest_session_id: guest_session_id || null,
+        status: 'OPEN',
+        receipt_code,
+        subtotal: totals.subtotal,
+        tax_amount: totals.tax_amount,
+        total_amount: totals.total_amount
+      }])
+      .select()
+      .single();
+
+    if (receiptError) {
+      console.error('Receipt creation error:', receiptError);
+      return res.status(500).json({ message: 'Failed to create receipt', error: receiptError.message });
+    }
+
+    // Insert receipt items
+    const receipt_items = items.map(item => ({
+      receipt_id: receipt.id,
+      barcode: item.barcode,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      unit: item.unit || 'pcs',
+      unit_price: item.unit_price,
+      line_total: item.unit_price * item.quantity,
+      tax_rate: item.tax_rate || 0,
+      tax_amount: (item.unit_price * item.quantity * (item.tax_rate || 0)) / 100,
+      hsn_code: item.hsn_code || null
+    }));
+
+    const { error: itemsError } = await supabase
+      .from('receipt_items')
+      .insert(receipt_items);
+
+    if (itemsError) {
+      console.error('Receipt items error:', itemsError);
+      return res.status(500).json({ message: 'Failed to save items', error: itemsError.message });
+    }
+
+    // Log CREATED event
+    await supabase
+      .from('receipt_events')
+      .insert([{
+        receipt_id: receipt.id,
+        event_type: 'CREATED',
+        source: 'mobile'
+      }]);
+
+    res.status(201).json({
+      message: 'Receipt created successfully',
+      receipt: {
+        id: receipt.id,
+        receipt_code: receipt.receipt_code,
+        status: receipt.status,
+        total_amount: receipt.total_amount,
+        items_count: items.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Create receipt error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// 2. GET RECEIPT (Called by Bridge app to fetch order details)
+app.get('/api/receipt/:receipt_code', async (req, res) => {
+  try {
+    const { receipt_code } = req.params;
+    const { api_key } = req.headers;
+
+    if (!receipt_code) {
+      return res.status(400).json({ message: 'receipt_code required' });
+    }
+
+    // Verify Bridge app authentication (if api_key provided)
+    if (api_key) {
+      const { data: device } = await supabase
+        .from('pos_devices')
+        .select('*')
+        .eq('api_key', api_key)
+        .eq('status', 'ACTIVE')
+        .single();
+
+      if (!device) {
+        return res.status(401).json({ message: 'Unauthorized device' });
+      }
+    }
+
+    // Fetch receipt
+    const { data: receipt, error: receiptError } = await supabase
+      .from('receipts')
+      .select('*')
+      .eq('receipt_code', receipt_code)
+      .single();
+
+    if (receiptError || !receipt) {
+      return res.status(404).json({ message: 'Receipt not found' });
+    }
+
+    // Check if receipt is in correct state for scanning
+    if (!['LOCKED', 'CONSUMED'].includes(receipt.status)) {
+      return res.status(400).json({ message: `Receipt cannot be scanned in ${receipt.status} state` });
+    }
+
+    // Fetch receipt items
+    const { data: items, error: itemsError } = await supabase
+      .from('receipt_items')
+      .select('*')
+      .eq('receipt_id', receipt.id)
+      .order('created_at', { ascending: true });
+
+    if (itemsError) {
+      return res.status(500).json({ message: 'Failed to fetch items', error: itemsError.message });
+    }
+
+    // Fetch store details
+    const { data: store } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('id', receipt.store_id)
+      .single();
+
+    // Format response for POS Bridge app
+    res.json({
+      success: true,
+      receipt: {
+        id: receipt.id,
+        receipt_code: receipt.receipt_code,
+        status: receipt.status,
+        created_at: receipt.created_at,
+        subtotal: receipt.subtotal,
+        tax_amount: receipt.tax_amount,
+        total_amount: receipt.total_amount
+      },
+      store: store ? {
+        name: store.name,
+        gst_number: store.gst_number,
+        pos_type: store.pos_type
+      } : null,
+      items: items.map(item => ({
+        barcode: item.barcode,
+        product_name: item.product_name,
+        quantity: item.quantity,
+        unit: item.unit,
+        unit_price: item.unit_price,
+        line_total: item.line_total,
+        tax_rate: item.tax_rate,
+        tax_amount: item.tax_amount,
+        hsn_code: item.hsn_code
+      }))
+    });
+
+  } catch (error) {
+    console.error('Fetch receipt error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// 3. LOCK RECEIPT (Called by mobile app when generating barcode)
+app.put('/api/receipt/:receipt_id/lock', async (req, res) => {
+  try {
+    const { receipt_id } = req.params;
+
+    if (!receipt_id) {
+      return res.status(400).json({ message: 'receipt_id required' });
+    }
+
+    // Update receipt status to LOCKED
+    const { data: receipt, error: updateError } = await supabase
+      .from('receipts')
+      .update({
+        status: 'LOCKED',
+        locked_at: new Date().toISOString()
+      })
+      .eq('id', receipt_id)
+      .select()
+      .single();
+
+    if (updateError || !receipt) {
+      return res.status(500).json({ message: 'Failed to lock receipt', error: updateError?.message });
+    }
+
+    // Log LOCKED event
+    await supabase
+      .from('receipt_events')
+      .insert([{
+        receipt_id: receipt.id,
+        event_type: 'LOCKED',
+        source: 'mobile'
+      }]);
+
+    res.json({
+      message: 'Receipt locked successfully',
+      receipt: {
+        id: receipt.id,
+        receipt_code: receipt.receipt_code,
+        status: receipt.status
+      }
+    });
+
+  } catch (error) {
+    console.error('Lock receipt error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// 4. CONSUME RECEIPT (Called by Bridge app after syncing to POS)
+app.put('/api/receipt/:receipt_code/consume', async (req, res) => {
+  try {
+    const { receipt_code } = req.params;
+    const { api_key } = req.headers;
+
+    if (!receipt_code) {
+      return res.status(400).json({ message: 'receipt_code required' });
+    }
+
+    // Verify Bridge app
+    if (api_key) {
+      const { data: device } = await supabase
+        .from('pos_devices')
+        .select('*')
+        .eq('api_key', api_key)
+        .eq('status', 'ACTIVE')
+        .single();
+
+      if (!device) {
+        return res.status(401).json({ message: 'Unauthorized device' });
+      }
+    }
+
+    // Fetch receipt first
+    const { data: receipt } = await supabase
+      .from('receipts')
+      .select('*')
+      .eq('receipt_code', receipt_code)
+      .single();
+
+    if (!receipt) {
+      return res.status(404).json({ message: 'Receipt not found' });
+    }
+
+    // Only LOCKED receipts can be consumed
+    if (receipt.status !== 'LOCKED') {
+      return res.status(400).json({ message: `Cannot consume receipt in ${receipt.status} state` });
+    }
+
+    // Update status to CONSUMED
+    const { data: updated, error: updateError } = await supabase
+      .from('receipts')
+      .update({
+        status: 'CONSUMED',
+        consumed_at: new Date().toISOString()
+      })
+      .eq('id', receipt.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      return res.status(500).json({ message: 'Failed to consume receipt', error: updateError.message });
+    }
+
+    // Log CONSUMED event
+    await supabase
+      .from('receipt_events')
+      .insert([{
+        receipt_id: receipt.id,
+        event_type: 'CONSUMED',
+        source: 'bridge'
+      }]);
+
+    res.json({
+      success: true,
+      message: 'Receipt consumed successfully',
+      receipt: {
+        id: updated.id,
+        receipt_code: updated.receipt_code,
+        status: updated.status,
+        consumed_at: updated.consumed_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Consume receipt error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// 5. GET RECEIPT EVENTS (Audit trail)
+app.get('/api/receipt/:receipt_id/events', async (req, res) => {
+  try {
+    const { receipt_id } = req.params;
+
+    if (!receipt_id) {
+      return res.status(400).json({ message: 'receipt_id required' });
+    }
+
+    const { data: events, error } = await supabase
+      .from('receipt_events')
+      .select('*')
+      .eq('receipt_id', receipt_id)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      return res.status(500).json({ message: 'Failed to fetch events', error: error.message });
+    }
+
+    res.json({
+      receipt_id,
+      events: events.map(event => ({
+        event_type: event.event_type,
+        source: event.source,
+        created_at: event.created_at,
+        description: event.description,
+        metadata: event.metadata
+      }))
+    });
+
+  } catch (error) {
+    console.error('Fetch events error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// 6. REGISTER POS DEVICE (Called by Bridge app on first launch)
+app.post('/api/pos-device/register', async (req, res) => {
+  try {
+    const { store_id, device_name, device_id } = req.body;
+
+    if (!store_id || !device_name || !device_id) {
+      return res.status(400).json({ message: 'Missing required fields: store_id, device_name, device_id' });
+    }
+
+    // Generate API key
+    const api_key = uuidv4();
+
+    // Register device
+    const { data: device, error } = await supabase
+      .from('pos_devices')
+      .insert([{
+        store_id,
+        device_name,
+        device_id,
+        api_key,
+        status: 'ACTIVE'
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Device registration error:', error);
+      return res.status(500).json({ message: 'Failed to register device', error: error.message });
+    }
+
+    res.status(201).json({
+      message: 'Device registered successfully',
+      device: {
+        id: device.id,
+        api_key: device.api_key,
+        device_name: device.device_name,
+        registered_at: device.registered_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Register device error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
