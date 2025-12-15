@@ -25,22 +25,22 @@ async function fetchOrderFromDatabase(orderId) {
     
     // First try: exact match with full UUID
     let { data, error } = await supabase
-      .from('orders')
+      .from('receipts')
       .select(`
         *,
-        order_items (
+        receipt_items (
           product_name,
-          product_sku,
-          product_hsn_code,
+          barcode as product_sku,
+          hsn_code as product_hsn_code,
           quantity,
-          unit_of_measurement,
+          unit as unit_of_measurement,
           unit_price,
           line_total,
-          gst_rate,
+          tax_rate as gst_rate,
           tax_amount
         )
       `)
-      .eq('id', searchId)
+      .eq('receipt_code', searchId)
       .single();
 
     // If not found with exact match, try RPC function for prefix search
@@ -51,40 +51,39 @@ async function fetchOrderFromDatabase(orderId) {
       // Get the first 12 chars of barcode (without hyphens)
       const barcodePattern = searchId.replace(/-/g, '').substring(0, 12);
       
-      // Query all orders and filter client-side by UUID string prefix
-      const { data: allOrders, error: allError } = await supabase
-        .from('orders')
+      // Query all receipts and filter client-side by receipt_code prefix
+      const { data: allReceipts, error: allError } = await supabase
+        .from('receipts')
         .select(`
           *,
-          order_items (
+          receipt_items (
             product_name,
-            product_sku,
-            product_hsn_code,
+            barcode as product_sku,
+            hsn_code as product_hsn_code,
             quantity,
-            unit_of_measurement,
+            unit as unit_of_measurement,
             unit_price,
             line_total,
-            gst_rate,
+            tax_rate as gst_rate,
             tax_amount
           )
         `)
         .limit(100); // Limit to avoid fetching too much data
 
-      if (!allError && allOrders && allOrders.length > 0) {
-        // Find order by barcode prefix
-        const matchedOrder = allOrders.find(order => {
-          const orderIdWithoutHyphens = order.id.replace(/-/g, '');
-          return orderIdWithoutHyphens.startsWith(barcodePattern);
+      if (!allError && allReceipts && allReceipts.length > 0) {
+        // Find receipt by receipt_code prefix
+        const matchedReceipt = allReceipts.find(receipt => {
+          return receipt.receipt_code.startsWith(barcodePattern);
         });
 
-        if (matchedOrder) {
-          data = matchedOrder;
+        if (matchedReceipt) {
+          data = matchedReceipt;
           error = null;
         } else {
-          error = new Error(`Order not found with barcode: ${barcodePattern}`);
+          error = new Error(`Receipt not found with barcode: ${barcodePattern}`);
         }
       } else {
-        error = allError || new Error('No orders found in database');
+        error = allError || new Error('No receipts found in database');
       }
     }
 
@@ -96,9 +95,9 @@ async function fetchOrderFromDatabase(orderId) {
       throw new Error(`Order not found with ID or barcode: ${orderId}`);
     }
 
-    // If items_snapshot exists, use it; otherwise create from order_items
-    if (!data.items_snapshot && data.order_items) {
-      data.items_snapshot = data.order_items.map(item => ({
+    // If items_snapshot exists, use it; otherwise create from receipt_items
+    if (!data.items_snapshot && data.receipt_items) {
+      data.items_snapshot = data.receipt_items.map(item => ({
         product_name: item.product_name,
         product_sku: item.product_sku,
         product_hsn_code: item.product_hsn_code,
@@ -118,17 +117,19 @@ async function fetchOrderFromDatabase(orderId) {
   }
 }
 
-async function logTransaction(orderId, status, details) {
+async function logTransaction(receiptId, status, details) {
   try {
     const supabase = await getSupabaseClient();
     
     const { error } = await supabase
-      .from('bridge_transactions')
+      .from('sync_logs')
       .insert([{
-        order_id: orderId,
+        entity_id: receiptId,
+        entity_type: 'receipt',
+        sync_type: 'RECEIPT',
+        source_system: 'bridge_app',
         status: status,
-        details: details,
-        created_at: new Date().toISOString()
+        details: details ? JSON.stringify(details) : null
       }]);
 
     if (error) throw error;

@@ -60,21 +60,14 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Save shopping history
+// Save shopping history - DEPRECATED
+// Use new Receipt API instead (POST /api/receipt)
 app.post('/save-shopping-history', async (req, res) => {
-  try {
-    const { userId, receiptNumber, date, time, storeName, products, totalWeight, totalAmount, paymentMethod } = req.body;
-    if (!userId || !receiptNumber || !products || !totalAmount) {
-      return res.status(400).json({ message: 'Missing required fields' });
-    }
-    const { error } = await supabase
-      .from('shopping_history')
-      .insert([{ user_id: userId, receipt_number: receiptNumber, date, time, store_name: storeName, products, total_weight: totalWeight, total_amount: totalAmount, payment_method: paymentMethod }]);
-    if (error) return res.status(500).json({ message: 'DB error', error: error.message });
-    res.json({ message: 'Shopping history saved successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  return res.status(410).json({ 
+    message: 'Deprecated endpoint - Use new Receipt API: POST /api/receipt',
+    redirect: '/api/receipt',
+    info: 'Shopping history is now tracked in receipts table'
+  });
 });
 
 // Checkout endpoint - Generate barcode and save checkout data
@@ -108,134 +101,87 @@ app.post('/checkout', async (req, res) => {
       }
     }
 
-    // Create order record
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
+    // Create receipt record using new schema
+    const receipt_code = uuidv4().replace(/-/g, '').substring(0, 12);
+    
+    // Calculate totals
+    const totals = products.reduce((acc, product) => {
+      const gstRate = product.gst_rate || 18;
+      const linePrice = parseFloat(product.price) * (product.quantity || 1);
+      const taxAmount = (linePrice * gstRate) / 100;
+      return {
+        subtotal: acc.subtotal + linePrice,
+        tax_amount: acc.tax_amount + taxAmount,
+        total_amount: acc.total_amount + linePrice + taxAmount
+      };
+    }, { subtotal: 0, tax_amount: 0, total_amount: 0 });
+
+    const { data: receipt, error: receiptError } = await supabase
+      .from('receipts')
       .insert([{
-        user_id: userId,
         store_id: storeId,
-        status: 'pending',
-        total_amount: totalAmount
+        user_id: userId,
+        status: 'OPEN',
+        receipt_code: receipt_code,
+        subtotal: totals.subtotal,
+        tax_amount: totals.tax_amount,
+        total_amount: totals.total_amount
       }])
       .select()
       .single();
 
-    if (orderError) {
-      console.error('Order creation error:', orderError);
-      return res.status(500).json({ message: 'DB error creating order', error: orderError.message, details: orderError });
+    if (receiptError) {
+      console.error('Receipt creation error:', receiptError);
+      return res.status(500).json({ message: 'DB error creating receipt', error: receiptError.message });
     }
 
-    // Use order ID as barcode (format: last 12 chars of UUID, numeric for barcode)
-    const barcodeNumber = orderData.id.replace(/-/g, '').substring(0, 12);
-
-    // Get store details for order
-    const { data: storeData } = await supabase
-      .from('stores')
-      .select('name, gst_number')
-      .eq('id', storeId)
-      .single();
-
-    // Insert order items with complete product details for POS
-    const orderItems = products.map(product => {
-      // Calculate GST (default 18% if not specified)
+    // Insert receipt items using new schema
+    const receiptItems = products.map(product => {
       const gstRate = product.gst_rate || 18;
       const linePrice = parseFloat(product.price) * (product.quantity || 1);
       const taxAmount = (linePrice * gstRate) / 100;
 
       return {
-        order_id: orderData.id,
-        product_id: product.product_id || null,
-        
-        // Product details
+        receipt_id: receipt.id,
+        barcode: product.barcode,
         product_name: product.name,
-        product_hsn_code: product.hsn_code || null,
-        product_sku: product.barcode,
-        
-        // Quantity
         quantity: product.quantity || 1,
-        unit_of_measurement: product.unit || 'pcs',
-        
-        // Pricing
+        unit: product.unit || 'pcs',
         unit_price: product.price,
         line_total: linePrice,
-        
-        // Tax
-        gst_rate: gstRate,
+        tax_rate: gstRate,
         tax_amount: taxAmount,
-        
-        // POS tracking
-        pos_sync_status: 'pending'
+        hsn_code: product.hsn_code || null
       };
     });
 
     const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
+      .from('receipt_items')
+      .insert(receiptItems);
 
     if (itemsError) {
-      console.error('Order items error:', itemsError);
+      console.error('Receipt items error:', itemsError);
       return res.status(500).json({ message: 'DB error saving items', error: itemsError.message });
     }
 
-    // Update order with enhanced details AND items snapshot for Bridge PC app
-    const totalTax = orderItems.reduce((sum, item) => sum + (item.tax_amount || 0), 0);
-    
-    // Create items snapshot for Bridge PC app (all items in one JSON field for quick retrieval)
-    const itemsSnapshot = orderItems.map(item => ({
-      product_name: item.product_name,
-      product_sku: item.product_sku,
-      product_hsn_code: item.product_hsn_code,
-      quantity: item.quantity,
-      unit_of_measurement: item.unit_of_measurement,
-      unit_price: item.unit_price,
-      line_total: item.line_total,
-      gst_rate: item.gst_rate,
-      tax_amount: item.tax_amount
-    }));
-
-    const { error: updateError } = await supabase
-      .from('orders')
-      .update({
-        store_name: storeData?.name,
-        store_gst_number: storeData?.gst_number,
-        subtotal: products.reduce((sum, p) => sum + (parseFloat(p.price) * (p.quantity || 1)), 0),
-        tax_amount: totalTax,
-        items_snapshot: itemsSnapshot,
-        status: 'confirmed'
-      })
-      .eq('id', orderData.id);
-
-    if (updateError) {
-      console.error('Order update error:', updateError);
-    }
-
-    // Generate 1D barcode (CODE128) as PNG
-    let barcodeImage;
-    try {
-      barcodeImage = await bwipjs.toBuffer({
-        bcid: 'code128',
-        text: barcodeNumber,
-        scale: 3,
-        height: 10,
-        includetext: true,
-        textxalign: 'center'
-      });
-      // Convert to base64
-      var barcodeDataUrl = 'data:image/png;base64,' + barcodeImage.toString('base64');
-    } catch (err) {
-      console.log('Barcode generation error:', err);
-      // Fallback if barcode generation fails
-      barcodeDataUrl = null;
-    }
+    // Log CREATED event
+    await supabase
+      .from('receipt_events')
+      .insert([{
+        receipt_id: receipt.id,
+        event_type: 'CREATED',
+        source: 'mobile_app'
+      }]);
 
     res.json({
       message: 'Checkout successful',
-      barcodeId: orderData.id,
-      barcodeNumber: barcodeNumber,
-      barcode: barcodeDataUrl,
-      orderId: orderData.id,
+      barcodeId: receipt.id,
+      barcodeNumber: receipt_code,
+      barcode: null,
+      receiptId: receipt.id,
+      receiptCode: receipt.receipt_code,
       products: products,
-      totalAmount: totalAmount
+      totalAmount: totals.total_amount
     });
 
   } catch (error) {
@@ -249,42 +195,36 @@ app.get('/pos/checkout/:orderId', async (req, res) => {
   try {
     const { orderId } = req.params;
 
-    // Fetch order with its items
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('id', orderId)
+    // Fetch receipt using new schema
+    const { data: receipt, error: receiptError } = await supabase
+      .from('receipts')
+      .select(`
+        *,
+        receipt_items (*)
+      `)
+      .eq('receipt_code', orderId)
       .single();
 
-    if (orderError || !order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    // Fetch order items with product details
-    const { data: orderItems, error: itemsError } = await supabase
-      .from('order_items')
-      .select('*, products(barcode, name, price)')
-      .eq('order_id', orderId);
-
-    if (itemsError) {
-      return res.status(500).json({ message: 'Error fetching order items', error: itemsError.message });
+    if (receiptError || !receipt) {
+      return res.status(404).json({ message: 'Receipt not found' });
     }
 
     // Format products for POS system
-    const formattedProducts = orderItems.map(item => ({
-      barcode: item.products?.barcode || 'N/A',
-      name: item.products?.name || 'Unknown',
+    const formattedProducts = receipt.receipt_items.map(item => ({
+      barcode: item.barcode,
+      name: item.product_name,
       quantity: item.quantity,
-      price: item.price,
-      total: item.price * item.quantity
+      price: item.unit_price,
+      total: item.line_total
     }));
 
     res.json({
-      orderId: order.id,
+      receiptId: receipt.id,
+      receiptCode: receipt.receipt_code,
       products: formattedProducts,
-      totalAmount: order.total_amount,
-      paymentStatus: order.status,
-      timestamp: order.created_at,
+      totalAmount: receipt.total_amount,
+      paymentStatus: receipt.status,
+      timestamp: receipt.created_at,
       // String format for direct keyboard emulation
       keyboardEmulationText: formattedProducts
         .map(p => `${p.barcode}|${p.name}|${p.quantity}|${p.price}`)
@@ -300,13 +240,50 @@ app.get('/pos/checkout/:orderId', async (req, res) => {
 app.get('/shopping-history/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    const { data: history, error } = await supabase
-      .from('shopping_history')
-      .select('*')
+    
+    // Fetch user's receipts from new schema
+    const { data: receipts, error } = await supabase
+      .from('receipts')
+      .select(`
+        id,
+        receipt_number,
+        receipt_code,
+        status,
+        subtotal,
+        tax_amount,
+        total_amount,
+        created_at,
+        receipt_items (
+          barcode,
+          product_name,
+          quantity,
+          unit,
+          unit_price,
+          line_total,
+          tax_rate,
+          tax_amount
+        )
+      `)
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(20);
+    
     if (error) return res.status(500).json({ message: 'DB error', error: error.message });
+    
+    // Transform receipts to match old shopping_history format for compatibility
+    const history = receipts?.map(receipt => ({
+      id: receipt.id,
+      receiptNumber: receipt.receipt_number,
+      receiptCode: receipt.receipt_code,
+      date: receipt.created_at,
+      status: receipt.status,
+      items: receipt.receipt_items,
+      subtotal: receipt.subtotal,
+      taxAmount: receipt.tax_amount,
+      totalAmount: receipt.total_amount,
+      itemsCount: receipt.receipt_items?.length || 0
+    })) || [];
+    
     res.json({ history });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
