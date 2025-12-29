@@ -173,11 +173,28 @@ app.post('/checkout', async (req, res) => {
         source: 'mobile_app'
       }]);
 
+    // Generate barcode image for counter display
+    let barcodeDataUrl = null;
+    try {
+      const barcode = await bwipjs.toDataUrl({
+        bcid: 'code128',
+        text: receipt_code,
+        scale: 2,
+        height: 10,
+        includetext: true,
+        textxalign: 'center'
+      });
+      barcodeDataUrl = barcode;
+    } catch (barcodeError) {
+      console.error('Barcode generation error:', barcodeError);
+      // Continue even if barcode fails - receipt is still valid
+    }
+
     res.json({
       message: 'Checkout successful',
       barcodeId: receipt.id,
       barcodeNumber: receipt_code,
-      barcode: null,
+      barcode: barcodeDataUrl,
       receiptId: receipt.id,
       receiptCode: receipt.receipt_code,
       products: products,
