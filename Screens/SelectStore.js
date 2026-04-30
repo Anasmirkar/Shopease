@@ -107,7 +107,7 @@ const StoreSelectionScreen = ({ navigation }) => {
     
     // Get store distance/info
     const getStoreInfo = (store) => {
-      if (store.name.toLowerCase().includes('demo')) return 'Experience ShopEase';
+      if (store.name.toLowerCase().includes('demo')) return 'Experience Scanto';
       return store.address; // Just return address, no distance
     };
 
@@ -133,7 +133,7 @@ const StoreSelectionScreen = ({ navigation }) => {
             <View style={styles.storeLocationRow}>
               <Icon name="location-on" size={14} color="#666" style={styles.locationIcon} />
               <Text style={styles.storeAddress}>
-                {isDemo ? 'Experience ShopEase' : store.address}
+                {isDemo ? 'Experience Scanto' : store.address}
               </Text>
             </View>
           </View>

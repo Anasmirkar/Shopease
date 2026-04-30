@@ -1,6 +1,6 @@
 /**
  * Typography Constants
- * Centralized typography definitions for the ShopEase app
+ * Centralized typography definitions for the Scanto app
  */
 
 export const Typography = {

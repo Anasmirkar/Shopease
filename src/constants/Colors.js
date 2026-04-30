@@ -1,6 +1,6 @@
 /**
  * Color Constants
- * Centralized color definitions for the ShopEase app
+ * Centralized color definitions for the Scanto app
  */
 
 export const Colors = {

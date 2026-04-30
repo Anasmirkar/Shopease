@@ -1,6 +1,6 @@
 /**
  * Dimension Constants
- * Centralized dimension definitions for the ShopEase app
+ * Centralized dimension definitions for the Scanto app
  */
 
 import { Dimensions } from 'react-native';

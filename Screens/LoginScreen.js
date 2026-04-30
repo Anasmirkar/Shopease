@@ -81,35 +81,27 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
   };
 
   const handleGuest = async () => {
-    setLoading(true);
-    let deviceId = null;
     try {
-      deviceId = Device.osInternalBuildId || Device.deviceName || Device.modelId || Device.osBuildId || Math.random().toString(36).substring(2, 15);
-    } catch (e) {
-      deviceId = Math.random().toString(36).substring(2, 15);
-    }
-    // First try to find existing guest record
-    let { data, error } = await supabase
-      .from('guests')
-      .select()
-      .eq('device_id', deviceId)
-      .single();
-    
-    // If no existing record found, create new one
-    if (error && error.code === 'PGRST116') {
-      const insertResult = await supabase
+      const deviceId = 'guest_' + Date.now();
+      const { error } = await supabase
         .from('guests')
-        .insert([{ device_id: deviceId }])
-        .select()
-        .single();
-      data = insertResult.data;
-      error = insertResult.error;
-    }
-    setLoading(false);
-    if (error) {
-      Alert.alert('Guest Login Failed', error.message);
-    } else {
-      onLoginSuccess && onLoginSuccess({ guest: true, ...data });
+        .insert([{ device_id: deviceId }]);
+      if (error) {
+        console.log('Supabase error, continuing as local guest:', error);
+      }
+      navigation.navigate('SelectStore', {
+        userId: deviceId,
+        isGuest: true
+      });
+    } catch (err) {
+      Alert.alert(
+        'Connection Error',
+        'Cannot connect to server. Continuing as guest.',
+        [{ text: 'OK', onPress: () => navigation.navigate('SelectStore', {
+          userId: 'local_guest_' + Date.now(),
+          isGuest: true
+        })}]
+      );
     }
   };
 
@@ -179,6 +171,7 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
           >
             <Ionicons name="scan" size={48} color="#fff" />
           </Animated.View>
+          <Text style={styles.appBrand}>Scanto</Text>
           <Text style={styles.title}>Welcome Back</Text>
           <Text style={styles.subtitle}>Sign in to continue</Text>
         </View>
@@ -256,6 +249,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 8,
     elevation: 8,
+  },
+  appBrand: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 2,
+    marginBottom: 4,
   },
   title: {
     fontSize: 34,

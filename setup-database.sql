@@ -1,6 +1,6 @@
 -- ============================================================
 -- Scanto Database Setup
--- Run this in your Supabase SQL editor
+-- Run this entire file in your Supabase SQL editor
 -- ============================================================
 
 -- Enable UUID extension
@@ -10,21 +10,21 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- USERS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
-  id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email       TEXT UNIQUE NOT NULL,
-  name        TEXT,
+  id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email        TEXT UNIQUE NOT NULL,
+  name         TEXT,
   phone_number TEXT,
   otp_verified BOOLEAN DEFAULT FALSE,
-  created_at  TIMESTAMPTZ DEFAULT NOW()
+  created_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ============================================================
 -- GUESTS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS guests (
-  id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  session_id TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  id         uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  device_id  text UNIQUE NOT NULL,
+  created_at timestamp with time zone DEFAULT NOW()
 );
 
 -- ============================================================
@@ -116,43 +116,36 @@ CREATE TABLE IF NOT EXISTS shopping_history (
 );
 
 -- ============================================================
--- Row-Level Security (enable but allow anon reads for demo)
--- Adjust policies to match your auth requirements
+-- Row-Level Security
 -- ============================================================
-ALTER TABLE users           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE guests          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE stores          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE products        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE carts           ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cart_items      ENABLE ROW LEVEL SECURITY;
-ALTER TABLE checkouts       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE users            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE guests           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE stores           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE carts            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cart_items       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkouts        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shopping_history ENABLE ROW LEVEL SECURITY;
 
--- Allow anon/authenticated to read stores and products
+-- Public read for stores and products
 CREATE POLICY "public read stores"   ON stores   FOR SELECT USING (true);
 CREATE POLICY "public read products" ON products FOR SELECT USING (true);
 
--- Allow authenticated users to manage their own carts
-CREATE POLICY "users manage own carts"
-  ON carts FOR ALL
-  USING (auth.uid() = user_id OR user_id IS NULL);
+-- Anon can insert/select guests (for guest login)
+CREATE POLICY "anon insert guests"   ON guests   FOR INSERT WITH CHECK (true);
+CREATE POLICY "anon select guests"   ON guests   FOR SELECT USING (true);
 
-CREATE POLICY "users manage own cart_items"
-  ON cart_items FOR ALL
-  USING (
-    cart_id IN (
-      SELECT id FROM carts
-      WHERE user_id = auth.uid() OR user_id IS NULL
-    )
-  );
+-- Anon can manage users (for Google sign-up/sign-in)
+CREATE POLICY "anon insert users"    ON users    FOR INSERT WITH CHECK (true);
+CREATE POLICY "anon select users"    ON users    FOR SELECT USING (true);
+CREATE POLICY "anon update users"    ON users    FOR UPDATE USING (true);
 
--- Allow anon inserts for guest checkout
-CREATE POLICY "anon insert carts"      ON carts      FOR INSERT WITH CHECK (true);
-CREATE POLICY "anon insert cart_items" ON cart_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "anon insert users"      ON users      FOR INSERT WITH CHECK (true);
-CREATE POLICY "anon select users"      ON users      FOR SELECT USING (true);
-CREATE POLICY "anon update users"      ON users      FOR UPDATE USING (true);
+-- Anon can create and read carts (for checkout flow)
+CREATE POLICY "anon insert carts"       ON carts       FOR INSERT WITH CHECK (true);
+CREATE POLICY "anon select carts"       ON carts       FOR SELECT USING (true);
+CREATE POLICY "anon insert cart_items"  ON cart_items  FOR INSERT WITH CHECK (true);
+CREATE POLICY "anon select cart_items"  ON cart_items  FOR SELECT USING (true);
+
+-- Shopping history
 CREATE POLICY "anon insert shopping_history" ON shopping_history FOR INSERT WITH CHECK (true);
-CREATE POLICY "users read own history"
-  ON shopping_history FOR SELECT
-  USING (auth.uid() = user_id OR user_id IS NULL);
+CREATE POLICY "anon select shopping_history" ON shopping_history FOR SELECT USING (true);

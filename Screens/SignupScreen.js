@@ -87,34 +87,52 @@ export default function SignupScreen({ navigation }) {
 
   const handleGuest = async () => {
     setLoading(true);
-    let deviceId = null;
+    let deviceId;
     try {
       deviceId = Device.osInternalBuildId || Device.deviceName || Device.modelId || Device.osBuildId || Math.random().toString(36).substring(2, 15);
-    } catch (e) {
+    } catch {
       deviceId = Math.random().toString(36).substring(2, 15);
     }
-    // First try to find existing guest record
-    let { data, error } = await supabase
-      .from('guests')
-      .select()
-      .eq('device_id', deviceId)
-      .single();
-    
-    // If no existing record found, create new one
-    if (error && error.code === 'PGRST116') {
-      const insertResult = await supabase
+
+    const proceedAsLocalGuest = () => {
+      setLoading(false);
+      navigation.navigate('SelectStore', { guest: true, id: deviceId, device_id: deviceId });
+    };
+
+    try {
+      let { data, error } = await supabase
         .from('guests')
-        .insert([{ device_id: deviceId }])
         .select()
+        .eq('device_id', deviceId)
         .single();
-      data = insertResult.data;
-      error = insertResult.error;
-    }
-    setLoading(false);
-    if (error) {
-      Alert.alert('Guest Signup Failed', error.message);
-    } else {
-      navigation.navigate('Main', { guest: true, ...data });
+
+      if (error && error.code === 'PGRST116') {
+        const insertResult = await supabase
+          .from('guests')
+          .insert([{ device_id: deviceId }])
+          .select()
+          .single();
+        data = insertResult.data;
+        error = insertResult.error;
+      }
+
+      setLoading(false);
+      if (error) {
+        console.warn('Guest DB error, continuing locally:', error.message);
+        navigation.navigate('SelectStore', { guest: true, id: deviceId, device_id: deviceId });
+      } else {
+        navigation.navigate('SelectStore', { guest: true, ...data });
+      }
+    } catch (networkErr) {
+      setLoading(false);
+      Alert.alert(
+        'Cannot connect to server',
+        'Check your internet connection. You can still continue as a guest.',
+        [
+          { text: 'Continue as Guest', onPress: proceedAsLocalGuest },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
     }
   };
 
