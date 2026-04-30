@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "ShopEase",
-    "slug": "shopease",
+    "name": "Scanto",
+    "slug": "scanto",
     "version": "1.0.0",
-    "scheme": "shopease",
+    "scheme": "scanto",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,7 +20,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.shopease.app",
+      "bundleIdentifier": "com.scanto.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -32,7 +32,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "applicationId": "com.shopease.app",
+      "applicationId": "com.scanto.app",
       "permissions": [
         "CAMERA",
         "INTERNET",
@@ -41,7 +41,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "config": {},
-      "package": "com.shopease.app"
+      "package": "com.scanto.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -50,7 +50,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow ShopEase to access your camera for scanning products."
+          "cameraPermission": "Allow Scanto to access your camera for scanning products."
         }
       ]
     ]

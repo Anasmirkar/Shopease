@@ -263,67 +263,73 @@ export default function MainAppScreen({ user, selectedStore, navigation, onLogou
     }
   };
 
-  // Checkout handler - Generate barcode for counter payment
+  const generateUUID = () =>
+    'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
+
+  // Checkout handler — save cart to Supabase then show QR
   const handleCheckout = async () => {
     if (!scannedProducts || scannedProducts.length === 0) {
       Alert.alert('Empty Basket', 'Please scan products before checkout');
       return;
     }
 
-    // Calculate totals
-    const totalAmount = scannedProducts.reduce((sum, item) => sum + (parseFloat(item.price || 0) * (item.quantity || 1)), 0);
+    const totalAmount = scannedProducts.reduce(
+      (sum, item) => sum + (parseFloat(item.price || 0) * (item.quantity || 1)),
+      0
+    );
 
     try {
       setPaymentModalVisible(false);
 
-      const checkoutPayload = {
-        userId: user?.id || user?._id,
-        storeId: selectedStore?.id,
-        products: scannedProducts.map(p => ({
-          barcode: p.barcode,
-          name: p.name,
-          product_id: p.id,
-          quantity: p.quantity || 1,
-          price: p.price,
-          weight: p.weight,
-          total: parseFloat(p.price) * (p.quantity || 1)
-        })),
-        totalAmount
-      };
+      const sessionUuid = generateUUID();
 
-      console.log('Checkout payload:', JSON.stringify(checkoutPayload, null, 2));
-      console.log('API URL:', `${API_CONFIG.BASE_URL}/checkout`);
+      // Insert cart record
+      const { data: cartData, error: cartError } = await supabase
+        .from('carts')
+        .insert({
+          session_uuid: sessionUuid,
+          store_id: selectedStore?.id || null,
+          user_id: user?.id || user?._id || null,
+          status: 'pending',
+        })
+        .select()
+        .single();
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/checkout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(checkoutPayload)
-      });
-
-      const data = await response.json();
-      console.log('Checkout response:', JSON.stringify(data, null, 2));
-
-      if (!response.ok) {
-        console.error('Checkout error:', data);
-        Alert.alert('Checkout Failed', data.message || 'Failed to generate barcode');
+      if (cartError) {
+        Alert.alert('Checkout Failed', 'Could not save cart: ' + cartError.message);
         return;
       }
 
-      // Navigate to barcode screen with the checkout data
-      navigation.navigate('CheckoutBarcode', {
-        barcodeData: {
-          barcodeNumber: data.barcodeNumber,
-          barcode: data.barcode,
-          products: checkoutPayload.products,
-          totalAmount: checkoutPayload.totalAmount
-        }
+      // Insert cart items
+      const cartItems = scannedProducts.map((p) => ({
+        cart_id: cartData.id,
+        barcode: p.barcode || null,
+        product_name: p.name,
+        price: parseFloat(p.price || 0),
+        quantity: p.quantity || 1,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('cart_items')
+        .insert(cartItems);
+
+      if (itemsError) {
+        Alert.alert('Checkout Failed', 'Could not save items: ' + itemsError.message);
+        return;
+      }
+
+      navigation.navigate('QRCheckout', {
+        sessionUuid,
+        cartId: cartData.id,
+        products: scannedProducts,
+        totalAmount,
+        storeName: selectedStore?.name || '',
       });
 
-      // Clear products after successful checkout
       setScannedProducts([]);
-
     } catch (error) {
       Alert.alert('Error', 'Failed to process checkout: ' + error.message);
     }

@@ -46,7 +46,7 @@ export default function SplashScreen({ onFinish }) {
         <View style={styles.logoSquare}>
           <Ionicons name="cart" size={48} color="#0e4a34" />
         </View>
-  <Text style={styles.appName}>ShopEase</Text>
+  <Text style={styles.appName}>Scanto</Text>
         <Text style={styles.tagline}>Shop Smart, Shop Easy</Text>
       </Animated.View>
     </LinearGradient>

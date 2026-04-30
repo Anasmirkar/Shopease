@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"ShopEase\\\\|shopease\\\\|Shopease\" \"D:/application_v1/Shopease\" --include=\"*.js\" --include=\"*.json\" ! -path \"*/node_modules/*\" ! -path \"*/.git/*\")",
+      "Bash(find \"D:/application_v1/Shopease\" -not -path \"*/node_modules/*\" -not -path \"*/.git/*\" -type f -exec wc -l {} \\\\;)",
+      "Bash(awk '{sum+=$1} END {print \"Total lines of code \\(excluding node_modules, .git\\): \" sum}')",
+      "Bash(npx expo *)"
+    ]
+  }
+}

@@ -10,6 +10,7 @@ import OTPScreen from "./Screens/OTPScreen";
 import SelectStore from "./Screens/SelectStore";
 import MainScreen from "./Screens/MainScreen";
 import CheckoutBarcodeScreen from "./Screens/CheckoutBarcodeScreen";
+import QRCheckoutScreen from "./Screens/QRCheckoutScreen";
 
 const Stack = createStackNavigator();
 
@@ -60,6 +61,11 @@ export default function App() {
             <Stack.Screen
               name="CheckoutBarcode"
               component={CheckoutBarcodeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="QRCheckout"
+              component={QRCheckoutScreen}
               options={{ headerShown: false }}
             />
           </>

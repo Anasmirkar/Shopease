@@ -5,7 +5,7 @@
 
 export const AppConstants = {
   // App Info
-  APP_NAME: 'ShopEase',
+  APP_NAME: 'Scanto',
   APP_VERSION: '1.0.0',
   
   // API Configuration
@@ -27,10 +27,10 @@ export const AppConstants = {
   
   // Storage Keys
   STORAGE_KEYS: {
-    USER_DATA: '@ShopEase:userData',
-    SELECTED_STORE: '@ShopEase:selectedStore',
-    SHOPPING_HISTORY: '@ShopEase:shoppingHistory',
-    APP_SETTINGS: '@ShopEase:appSettings',
+    USER_DATA: '@Scanto:userData',
+    SELECTED_STORE: '@Scanto:selectedStore',
+    SHOPPING_HISTORY: '@Scanto:shoppingHistory',
+    APP_SETTINGS: '@Scanto:appSettings',
   },
   
   // Validation Rules
