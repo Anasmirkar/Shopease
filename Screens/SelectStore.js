@@ -16,6 +16,12 @@ import { supabase } from '../supabaseClient';
 
 const { width, height } = Dimensions.get('window');
 
+const FALLBACK_STORES = [
+  { id: '1', name: 'Scanto Demo Store', address: 'Main Market, Dapoli, Maharashtra' },
+  { id: '2', name: 'Fresh Mart', address: 'Near Bus Stand, Dapoli' },
+  { id: '3', name: 'Super Bazaar', address: 'Market Road, Chiplun' },
+];
+
 const StoreSelectionScreen = ({ navigation }) => {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,14 +34,17 @@ const StoreSelectionScreen = ({ navigation }) => {
 
   useEffect(() => {
     const fetchStores = async () => {
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*');
-      if (error) {
-        setError('Failed to load stores');
-        setStores([]);
-      } else {
-        setStores(data);
+      try {
+        const { data, error } = await supabase
+          .from('stores')
+          .select('*');
+        if (!error && data && data.length > 0) {
+          setStores(data);           // Supabase has stores — use ONLY those
+        } else {
+          setStores(FALLBACK_STORES); // Empty or error — use ONLY fallback
+        }
+      } catch {
+        setStores(FALLBACK_STORES);  // Network failure — use ONLY fallback
       }
       setLoading(false);
     };

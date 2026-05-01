@@ -6,7 +6,14 @@
       "Bash(awk '{sum+=$1} END {print \"Total lines of code \\(excluding node_modules, .git\\): \" sum}')",
       "Bash(npx expo *)",
       "Bash(findstr /s /m /i \"swtmdczamqahhudphgek\" *.js src\\\\*.js src\\\\config\\\\*.js smart-scan-backend\\\\*.js)",
-      "PowerShell(Select-String *)"
+      "PowerShell(Select-String *)",
+      "Bash(grep -v \"^.*//.*$\")",
+      "Bash(sed -n '30,39p' setup-database.sql)",
+      "Bash(sed -n '64,87p' setup-database.sql)",
+      "Bash(sed -n '172,177p' setup-database.sql)",
+      "Bash(grep -n \"ON CONFLICT\\\\|WHERE NOT EXISTS\\\\|DO \\\\$\\\\$\\\\|user_id\\\\|stores_name_unique\" setup-database.sql)",
+      "Bash(npm install *)",
+      "Bash(npm list *)"
     ]
   }
 }

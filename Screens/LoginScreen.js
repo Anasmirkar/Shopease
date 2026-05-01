@@ -89,18 +89,20 @@ export default function LoginScreen({ navigation, onLoginSuccess }) {
       if (error) {
         console.log('Supabase error, continuing as local guest:', error);
       }
-      navigation.navigate('SelectStore', {
-        userId: deviceId,
-        isGuest: true
-      });
+      // onLoginSuccess sets isLoggedIn=true in App.js, which mounts
+      // the authenticated navigator where SelectStore is registered
+      onLoginSuccess && onLoginSuccess({ isGuest: true, id: deviceId, device_id: deviceId });
     } catch (err) {
       Alert.alert(
         'Connection Error',
         'Cannot connect to server. Continuing as guest.',
-        [{ text: 'OK', onPress: () => navigation.navigate('SelectStore', {
-          userId: 'local_guest_' + Date.now(),
-          isGuest: true
-        })}]
+        [{
+          text: 'OK',
+          onPress: () => onLoginSuccess && onLoginSuccess({
+            isGuest: true,
+            id: 'local_guest_' + Date.now(),
+          }),
+        }]
       );
     }
   };

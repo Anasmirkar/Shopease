@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, StatusBar,
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
+import { BarcodeView } from 'rn-barcode-renderer';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -15,14 +15,13 @@ export default function QRCheckoutScreen({ route, navigation }) {
     storeName = '',
   } = route.params || {};
 
-  const handleContinueShopping = () => {
-    navigation.navigate('MainApp');
-  };
+  const itemCount = products.reduce((sum, p) => sum + (p.quantity || 1), 0);
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0b3d2e" />
 
+      {/* Header */}
       <LinearGradient colors={['#0b3d2e', '#116142']} style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -35,25 +34,34 @@ export default function QRCheckoutScreen({ route, navigation }) {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Success badge */}
-        <View style={styles.successBadge}>
-          <Ionicons name="checkmark-circle" size={26} color="#116142" />
-          <Text style={styles.successText}>Cart Saved — Ready for Checkout</Text>
-        </View>
+        {/* Main barcode card */}
+        <View style={styles.barcodeCard}>
+          <Text style={styles.readyTitle}>Ready to Checkout</Text>
 
-        {/* QR code card */}
-        <View style={styles.qrCard}>
-          <Text style={styles.qrLabel}>Show this QR code to the cashier</Text>
-          <View style={styles.qrWrapper}>
-            <QRCode
-              value={sessionUuid || 'no-session'}
-              size={248}
-              color="#0b3d2e"
-              backgroundColor="#ffffff"
+          {/* Cart summary */}
+          <Text style={styles.cartSummary}>
+            {itemCount} item{itemCount !== 1 ? 's' : ''} • Total ₹{parseFloat(totalAmount).toFixed(2)}
+          </Text>
+
+          {/* Instruction */}
+          <Text style={styles.instruction}>Show this barcode to the cashier</Text>
+
+          {/* CODE128 Barcode */}
+          <View style={styles.barcodeWrapper}>
+            <BarcodeView
+              value={sessionUuid || '0000000000'}
+              format="CODE128"
+              maxWidth={300}
+              height={120}
+              color="black"
+              bgColor="white"
+              padding={12}
             />
           </View>
-          <Text style={styles.sessionIdLabel}>Session ID</Text>
-          <Text style={styles.sessionId} numberOfLines={1} ellipsizeMode="middle">
+
+          {/* Session ID fallback */}
+          <Text style={styles.sessionIdLabel}>Session ID (manual entry)</Text>
+          <Text style={styles.sessionId} numberOfLines={2}>
             {sessionUuid}
           </Text>
         </View>
@@ -61,15 +69,11 @@ export default function QRCheckoutScreen({ route, navigation }) {
         {/* Order summary */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Order Summary</Text>
-          {storeName ? (
-            <Text style={styles.storeName}>{storeName}</Text>
-          ) : null}
+          {storeName ? <Text style={styles.storeName}>{storeName}</Text> : null}
 
           {products.map((item, index) => (
             <View key={index} style={styles.productRow}>
-              <Text style={styles.productName} numberOfLines={1}>
-                {item.name}
-              </Text>
+              <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
               <Text style={styles.productQty}>×{item.quantity || 1}</Text>
               <Text style={styles.productPrice}>
                 ₹{(parseFloat(item.price || 0) * (item.quantity || 1)).toFixed(2)}
@@ -80,17 +84,14 @@ export default function QRCheckoutScreen({ route, navigation }) {
           <View style={styles.divider} />
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalAmount}>
-              ₹{parseFloat(totalAmount).toFixed(2)}
-            </Text>
+            <Text style={styles.totalAmount}>₹{parseFloat(totalAmount).toFixed(2)}</Text>
           </View>
         </View>
 
-        {/* Next steps */}
+        {/* Steps */}
         <View style={styles.stepsCard}>
-          <Text style={styles.stepsTitle}>Next Steps</Text>
           {[
-            'Show QR code to the cashier',
+            'Show barcode to the cashier',
             'Cashier scans and processes payment',
             'Collect your receipt and bags',
           ].map((step, i) => (
@@ -103,18 +104,14 @@ export default function QRCheckoutScreen({ route, navigation }) {
           ))}
         </View>
 
+        {/* Cancel button */}
         <TouchableOpacity
-          style={styles.continueButton}
-          onPress={handleContinueShopping}
-          activeOpacity={0.85}
+          style={styles.cancelButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
         >
-          <LinearGradient
-            colors={['#116142', '#0e4a34']}
-            style={styles.continueButtonGradient}
-          >
-            <Ionicons name="cart-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.continueButtonText}>Continue Shopping</Text>
-          </LinearGradient>
+          <Ionicons name="close-circle-outline" size={20} color="#e53935" style={{ marginRight: 8 }} />
+          <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -144,23 +141,9 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 48,
   },
-  successBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#e6f4ec',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-    gap: 8,
-  },
-  successText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#116142',
-  },
-  qrCard: {
+
+  /* Barcode card */
+  barcodeCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
     padding: 24,
@@ -172,39 +155,51 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 5,
   },
-  qrLabel: {
+  readyTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1a1a1a',
+    marginBottom: 8,
+  },
+  cartSummary: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#116142',
+    marginBottom: 6,
+  },
+  instruction: {
     fontSize: 14,
-    color: '#555',
-    fontWeight: '500',
-    marginBottom: 20,
+    color: '#666',
+    marginBottom: 24,
     textAlign: 'center',
   },
-  qrWrapper: {
-    padding: 14,
+  barcodeWrapper: {
     backgroundColor: '#fff',
-    borderRadius: 14,
-    borderWidth: 2.5,
-    borderColor: '#116142',
-    shadowColor: '#116142',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    marginBottom: 16,
+    overflow: 'hidden',
   },
   sessionIdLabel: {
     fontSize: 11,
     color: '#aaa',
-    marginTop: 16,
+    marginTop: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   sessionId: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#777',
     marginTop: 4,
-    maxWidth: 280,
     textAlign: 'center',
+    paddingHorizontal: 8,
   },
+
+  /* Summary card */
   summaryCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
@@ -233,57 +228,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
   },
-  productName: {
-    flex: 1,
-    fontSize: 14,
-    color: '#333',
-  },
-  productQty: {
-    fontSize: 13,
-    color: '#888',
-    marginHorizontal: 10,
-  },
-  productPrice: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1a1a1a',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#ececec',
-    marginVertical: 12,
-  },
+  productName: { flex: 1, fontSize: 14, color: '#333' },
+  productQty: { fontSize: 13, color: '#888', marginHorizontal: 10 },
+  productPrice: { fontSize: 14, fontWeight: '600', color: '#1a1a1a' },
+  divider: { height: 1, backgroundColor: '#ececec', marginVertical: 12 },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  totalAmount: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#116142',
-  },
+  totalLabel: { fontSize: 16, fontWeight: '600', color: '#333' },
+  totalAmount: { fontSize: 22, fontWeight: '800', color: '#116142' },
+
+  /* Steps card */
   stepsCard: {
     backgroundColor: '#fff',
     borderRadius: 20,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
     elevation: 5,
-  },
-  stepsTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 16,
   },
   stepRow: {
     flexDirection: 'row',
@@ -299,28 +266,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
-  stepBadgeText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  stepText: {
-    fontSize: 14,
-    color: '#444',
-    flex: 1,
-  },
-  continueButton: {
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  continueButtonGradient: {
+  stepBadgeText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  stepText: { fontSize: 14, color: '#444', flex: 1 },
+
+  /* Cancel button */
+  cancelButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#e53935',
+    paddingVertical: 14,
+    backgroundColor: '#fff',
   },
-  continueButtonText: {
-    color: '#fff',
+  cancelButtonText: {
+    color: '#e53935',
     fontSize: 16,
     fontWeight: '700',
   },
